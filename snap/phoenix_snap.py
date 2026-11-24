@@ -1115,7 +1115,7 @@ class _SnapWindow(QtWidgets.QWidget):
 
         v.addSpacing(4)
 
-        v.addWidget(_Label("Snap to nearest mesh")); v.addSpacing(8)
+        v.addWidget(_Label("Snap to nearest mesh", 12, "ink", QtCore.Qt.AlignCenter)); v.addSpacing(8)
         pad = QtWidgets.QGridLayout()
         pad.setHorizontalSpacing(8); pad.setVerticalSpacing(8)
         for name, r, c in (("top", 0, 1), ("left", 1, 0), ("right", 1, 2), ("bottom", 2, 1)):
@@ -1132,7 +1132,7 @@ class _SnapWindow(QtWidgets.QWidget):
         v.addSpacing(14); v.addWidget(_Rule()); v.addSpacing(12)
 
         row2 = QtWidgets.QGridLayout(); row2.setHorizontalSpacing(8)
-        b_drop = _PixelButton("DROP TO FLOOR")
+        b_drop = _PixelButton("TO FLOOR")
         b_piv = _PixelButton("PIVOT BOTTOM")
         b_drop.setToolTip("Lowest point of the selection onto world Y = 0 (shelf click)")
         b_piv.setToolTip("Pivot to the bottom-centre of the bounding box (shelf right-click)")
