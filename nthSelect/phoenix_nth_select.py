@@ -6,12 +6,12 @@
 #             (Maya's polySelectEdgesEveryN, same as the old m341 tool)
 #     Faces / verts   select a loop of faces or verts → keeps every Nth one,
 #             or select just TWO neighbours → every Nth along the whole strip
-#     FULL LOOPS   keeps every Nth, then grows each one into its full loop
+#     AS LOOPS     keeps every Nth, then grows each one into its full loop
 #                  across the strip (edges: Nth ring → full edge loops)
 #
 #   PATTERN
 #     Click components one by one along a strip, e.g. a face, the face 2 after,
-#     the face 3 after that → REPEAT PATTERN continues +2 +3 +2 +3 … until the
+#     the face 3 after that → REPEAT continues +2 +3 +2 +3 … until the
 #     strip ends or wraps. Works on faces (quad strips), edges (loops or rings,
 #     detected automatically) and verts (vertex loops). BOTH WAYS also extends
 #     backwards from the first pick.
@@ -1110,6 +1110,66 @@ class _Rule(QtWidgets.QWidget):
         p = QtGui.QPainter(self); p.fillRect(self.rect(), _c("ink")); p.end()
 
 
+
+
+class _NumField(QtWidgets.QWidget):
+    """Pixel-framed number box. Type a value, or scroll / arrow keys to nudge."""
+    valueChanged = QtCore.Signal(int)
+
+    def __init__(self, value=2, lo=1, hi=999, width=64, parent=None):
+        super(_NumField, self).__init__(parent)
+        self._lo, self._hi = lo, hi
+        self.setFixedSize(width, 34)
+        self.edit = QtWidgets.QLineEdit(str(value), self)
+        self.edit.setValidator(QtGui.QIntValidator(lo, hi, self))
+        self.edit.setAlignment(QtCore.Qt.AlignCenter)
+        self.edit.setFrame(False)
+        self.edit.setFont(_px(14, False, 0.5))
+        self.edit.setGeometry(6, 4, width - 15, 23)
+        self.edit.textChanged.connect(lambda *_: self.valueChanged.emit(self.value()))
+        self.edit.editingFinished.connect(lambda: self.setValue(self.value()))
+        self.edit.installEventFilter(self)
+        self._restyle()
+
+    def _restyle(self):
+        self.edit.setStyleSheet(
+            "QLineEdit{{background:transparent;color:{0};border:none;"
+            "selection-background-color:{1};selection-color:{2};}}".format(
+                _T()["ink"], _T()["acc"], _T()["acci"]))
+
+    def value(self):
+        try:
+            return max(self._lo, min(self._hi, int(self.edit.text())))
+        except ValueError:
+            return self._lo
+
+    def setValue(self, v):
+        v = max(self._lo, min(self._hi, int(v)))
+        if self.edit.text() != str(v):
+            self.edit.setText(str(v))
+
+    def eventFilter(self, obj, e):
+        if e.type() == QtCore.QEvent.KeyPress and e.key() in (QtCore.Qt.Key_Up, QtCore.Qt.Key_Down):
+            self.setValue(self.value() + (1 if e.key() == QtCore.Qt.Key_Up else -1))
+            return True
+        return False
+
+    def wheelEvent(self, e):
+        d = e.angleDelta().y()
+        if d:
+            self.setValue(self.value() + (1 if d > 0 else -1))
+
+    def mousePressEvent(self, e):
+        self.edit.setFocus()
+        self.edit.selectAll()
+
+    def paintEvent(self, e):
+        self._restyle()
+        p = QtGui.QPainter(self)
+        focus = self.edit.hasFocus()
+        _pbox(p, 0, 0, self.width() - 3, self.height() - 3, _c("fld"),
+              _c("acc") if focus else _c("ink"), 3, 3, _c("sh"))
+        p.end()
 class _IconTile(QtWidgets.QWidget):
     clicked = QtCore.Signal(int)
 
@@ -1309,56 +1369,71 @@ class _NthSelectWindow(QtWidgets.QWidget):
         v.addWidget(self.status)
         v.addSpacing(10)
 
-        # every Nth
-        v.addWidget(_Label("Every Nth")); v.addSpacing(5)
-        self.s_n = _PixelSlider("EVERY", 1, 50, 2)
-        self.s_n.setToolTip("Keep 1, skip N-1  (N = 2 → every other one)")
-        v.addWidget(self.s_n); v.addSpacing(6)
+        # ── every Nth ───────────────────────────────────────────────────
+        v.addWidget(_Label("Every Nth")); v.addSpacing(8)
 
-        modes = QtWidgets.QHBoxLayout(); modes.setSpacing(8)
-        modes.addWidget(_Label("EDGES", 11))
-        self.b_ring = _PixelButton("RING", 30)
-        self.b_loop = _PixelButton("LOOP", 30)
-        self.b_ring.setToolTip("Edges: count along the ring")
-        self.b_loop.setToolTip("Edges: count along the loop")
+        r1 = QtWidgets.QHBoxLayout(); r1.setSpacing(10)
+        r1.addWidget(self._row_label("EVERY"))
+        self.f_n = _NumField(2, 1, 999)
+        self.f_n.setToolTip("2 = every other one, 3 = every third ...\nScroll or use the arrow keys to nudge")
+        r1.addWidget(self.f_n)
+        self.n_hint = _Label("", 10, "mid")
+        r1.addWidget(self.n_hint, 1)
+        self.f_n.valueChanged.connect(self._update_hint)
+        v.addLayout(r1); v.addSpacing(8)
+        self._update_hint()
+
+        r2 = QtWidgets.QHBoxLayout(); r2.setSpacing(10)
+        r2.addWidget(self._row_label("EDGES"))
+        self.b_ring = _PixelButton("RING", 32)
+        self.b_loop = _PixelButton("LOOP", 32)
+        self.b_ring.setToolTip("Edges only: count across the ring (parallel edges)")
+        self.b_loop.setToolTip("Edges only: count along the loop (end to end)")
         self.b_ring.clicked.connect(lambda *_: self._set_edge_mode("edgeRing"))
         self.b_loop.clicked.connect(lambda *_: self._set_edge_mode("edgeLoop"))
-        modes.addWidget(self.b_ring, 1); modes.addWidget(self.b_loop, 1)
-        v.addLayout(modes); v.addSpacing(8)
+        r2.addWidget(self.b_ring, 1); r2.addWidget(self.b_loop, 1)
+        v.addLayout(r2); v.addSpacing(10)
         self._set_edge_mode("edgeRing")
 
         row = QtWidgets.QGridLayout(); row.setHorizontalSpacing(10)
-        b_nth = _PixelButton("SELECT NTH")
-        b_full = _PixelButton("FULL LOOPS")
-        b_nth.setToolTip("Edges: every Nth by ring / loop\n"
-                         "Faces / verts: thin a selected loop, or pick two neighbours\n"
-                         "to take every Nth along the whole strip")
-        b_full.setToolTip("Edges: every Nth ring, grown into full edge loops\n"
-                          "Faces / verts: every Nth, each grown into its full loop across the strip")
-        b_nth.clicked.connect(lambda *_: self._run(lambda: every_nth(self.s_n.value(), self._edge_mode)))
-        b_full.clicked.connect(lambda *_: self._run(lambda: every_nth(self.s_n.value(), self._edge_mode, full=True)))
+        b_nth = _PixelButton("SELECT"); b_nth.setHot(True)
+        b_full = _PixelButton("AS LOOPS")
+        b_nth.setToolTip("Select one, skip N-1, along what you picked.\n"
+                         "Faces / verts: select a loop, or just two neighbours")
+        b_full.setToolTip("Same, but every kept one grows into its full loop")
+        b_nth.clicked.connect(lambda *_: self._run(lambda: every_nth(self.f_n.value(), self._edge_mode)))
+        b_full.clicked.connect(lambda *_: self._run(lambda: every_nth(self.f_n.value(), self._edge_mode, full=True)))
         row.addWidget(b_nth, 0, 0); row.addWidget(b_full, 0, 1)
         row.setColumnStretch(0, 1); row.setColumnStretch(1, 1)
         v.addLayout(row)
 
-        v.addSpacing(12); v.addWidget(_Rule()); v.addSpacing(10)
+        v.addSpacing(14); v.addWidget(_Rule()); v.addSpacing(12)
 
-        # pattern
-        v.addWidget(_Label("Pattern")); v.addSpacing(4)
-        tip = _Label("PICK ONE, THEN THE NEXT ONES ALONG", 10, "mid")
-        v.addWidget(tip); v.addSpacing(8)
+        # ── pattern ─────────────────────────────────────────────────────
+        v.addWidget(_Label("Pattern")); v.addSpacing(6)
+        v.addWidget(_Label("1  CLICK A FEW IN ORDER, WITH GAPS", 10, "mid")); v.addSpacing(3)
+        v.addWidget(_Label("2  REPEAT COPIES THOSE GAPS", 10, "mid")); v.addSpacing(10)
         prow = QtWidgets.QHBoxLayout(); prow.setSpacing(10)
         self.c_both = _Check("BOTH WAYS")
         self.c_both.setChecked(True)
-        self.c_both.setToolTip("Also repeat the pattern backwards from the first pick")
+        self.c_both.setToolTip("Also repeat backwards from your first pick")
         prow.addWidget(self.c_both)
-        b_pat = _PixelButton("REPEAT PATTERN"); b_pat.setHot(True)
+        b_pat = _PixelButton("REPEAT"); b_pat.setHot(True)
         b_pat.setToolTip("Reads the gaps between your picks (e.g. +2 +3)\n"
-                         "and repeats them along the strip")
+                         "and repeats them along the loop / strip")
         b_pat.clicked.connect(lambda *_: self._run(lambda: repeat_pattern(self.c_both.isChecked())))
         prow.addWidget(b_pat, 1)
         v.addLayout(prow)
         return page
+
+    def _row_label(self, text):
+        lab = _Label(text, 11)
+        lab.setFixedWidth(52)
+        return lab
+
+    def _update_hint(self, *_):
+        n = self.f_n.value()
+        self.n_hint.setText("KEEP ALL" if n == 1 else "SKIP {} BETWEEN".format(n - 1))
 
     # ── themes page ──────────────────────────────────────────────────────
     def _build_themes(self):
