@@ -1,0 +1,9 @@
+{
+  "name": "Topo Loop",
+  "description": "Shift loop / ring preview",
+  "main": "phoenix_topo_preview.py",
+  "module": "phoenix_topo_preview",
+  "docTag": "phoenixTopoPreview",
+  "userSetup": "# >>> phoenix_topo_preview autostart >>>\ndef _phx_topo_preview_autostart():\n    try:\n        import phoenix_topo_preview\n        phoenix_topo_preview.autostart()\n    except Exception:\n        import traceback\n        traceback.print_exc()\nimport maya.utils as _phx_mu\n_phx_mu.executeDeferred(_phx_topo_preview_autostart)\n# <<< phoenix_topo_preview autostart <<<",
+  "postInstall": "import sys, importlib\nold = sys.modules.get('phoenix_topo_preview')\nif old is not None:\n    try:\n        old.unload_plugin()\n    except Exception:\n        pass\nfor n in ('phoenix_topo_preview', 'phoenix_topo_core', 'phoenixTopoPreview'):\n    sys.modules.pop(n, None)\nimportlib.invalidate_caches()\nimport phoenix_topo_preview\nphoenix_topo_preview.enable()"
+}
