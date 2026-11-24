@@ -10,7 +10,6 @@
 #   ROTATION      where the grid's corners sit on the border
 #   PROPORTION    grid columns vs rows
 #   RELAX         smooths the new inner vertices (border stays put)
-#   SMOOTH BORDER evens out the hole border itself
 #   INSET + / -   adds edge rings around the patch
 #   PATCH IT      merges the patch into the mesh (one undo step)
 #   RESET         drops the preview
@@ -1467,15 +1466,13 @@ class _QuadPatchWindow(QtWidgets.QWidget):
         self.s_rot = _PixelSlider("ROTATION", 0, 1, 0)
         self.s_prop = _PixelSlider("PROPORTION", 1, 2, 1)
         self.s_relax = _PixelSlider("RELAX", 0, 30, 10)
-        self.s_smooth = _PixelSlider("SMOOTH", 0.0, 1.0, 0.0, decimals=2)
         self.s_ext = _PixelSlider("EXTRUDE", 1, 2, 1)
         self.s_rot.setToolTip("Moves where the grid's corners sit on the border")
         self.s_prop.setToolTip("Columns vs rows of the grid")
         self.s_relax.setToolTip("Smooths the new inner vertices (border stays put)")
-        self.s_smooth.setToolTip("Evens out the hole border itself (moves the border vertices)")
         self.s_ext.setToolTip("Extrude mode: how many rows grow into the hole")
         for s, key in ((self.s_rot, "rotation"), (self.s_prop, "proportion"), (self.s_relax, "relax"),
-                       (self.s_smooth, "smooth"), (self.s_ext, "extrude")):
+                       (self.s_ext, "extrude")):
             s.valueChanged.connect(lambda val, k=key: self._param(k, val))
             v.addWidget(s); v.addSpacing(4)
         v.addSpacing(6)
@@ -1569,13 +1566,12 @@ class _QuadPatchWindow(QtWidgets.QWidget):
         self.status.setText(text)
         for bt in (self.b_edge, self.b_face, self.b_ext):
             bt.setEnabled(True); bt.setHot(False)
-        for w in (self.s_rot, self.s_prop, self.s_relax, self.s_smooth, self.s_ext,
+        for w in (self.s_rot, self.s_prop, self.s_relax, self.s_ext,
                   self.c_inset, self.b_minus, self.b_plus, self.b_patch):
             w.setEnabled(False)
         self.c_inset.setChecked(False)
         self._update_rings_label(1)
         self.s_relax.setValue(10)
-        self.s_smooth.setValue(0.0)
 
     def _start(self, mode):
         try:
@@ -1599,7 +1595,7 @@ class _QuadPatchWindow(QtWidgets.QWidget):
         self.s_rot.setRange(0, pt.max_rotation()); self.s_rot.setValue(0)
         self.s_prop.setRange(1, pt.max_proportion()); self.s_prop.setValue(pt.params["proportion"])
         self.s_ext.setRange(1, pt.max_extrude()); self.s_ext.setValue(1)
-        for w in (self.s_rot, self.s_prop, self.s_smooth, self.c_inset):
+        for w in (self.s_rot, self.s_prop, self.c_inset):
             w.setEnabled(full)
         self.s_ext.setEnabled(not full)
         self.s_relax.setEnabled(True)
@@ -1612,7 +1608,7 @@ class _QuadPatchWindow(QtWidgets.QWidget):
 
     def _apply_all(self):
         self.patcher.update(rotation=int(self.s_rot.value()), proportion=int(self.s_prop.value()),
-                            relax=int(self.s_relax.value()), smooth=float(self.s_smooth.value()),
+                            relax=int(self.s_relax.value()), smooth=0.0,
                             extrude=int(self.s_ext.value()), inset=self.c_inset.isChecked())
 
     def _param(self, key, val):
