@@ -808,41 +808,25 @@ class _SwatchGrid(QtWidgets.QWidget):
 
 
 # =========================================================================
-# SHELF ICON — quad sphere with selected edge rings (32x32), one version per theme
+# SHELF ICON — picked / skipped verts, one colour version per theme
 # =========================================================================
 _ICON_MAP = [
-    "            ########            ",
-    "         #####lll######         ",
-    "        ###ll#####ll##l#        ",
-    "      ####lll#####lll##l##      ",
-    "     ####lll##lll##lll#####     ",
-    "    #l##l####lllll####l##ll#    ",
-    "   #ll#lll###lllll###lll#lll#   ",
-    "  ##l#llll#l##lll##l#llll#l##   ",
-    "  ####lll#llll###llll#lll#####  ",
-    " #ll##ll#lllll###lllll#ll##lll# ",
-    " #l##l###llll##l##llll###l##ll# ",
-    " #l#lll###ll##lll##ll###lll#ll# ",
-    "#o##ll##l####lllll####l##ll##oo#",
-    "#o#lll#lll###lllll###lll#lll#oo#",
-    "#oooll#lll#ll##l##ll#lll#lloool#",
-    "##ooo#llll#lll###lll#llll#ooo#l#",
-    "##loooolll#llll#llll#lllooool#l#",
-    "##ll##oool#llll#llll#looo##ll#l#",
-    "#oll#looooollll#lllloooool#llol#",
-    "#ool#lllo#ooool#loooo#olll#lool#",
-    " #oo#llll#loooooooool#llll#ooo# ",
-    " #ooollll#llloo#oolll#lllloool# ",
-    " #lo#ooll#lllll#lllll#lloo#oll# ",
-    "  #l#oooooollll#lllloooooo#ll#  ",
-    "   ##lloo#ooooooooooo#ooll#l#   ",
-    "   ###lll#ooooo#ooooo#lll##l#   ",
-    "    ####l#lllll#lllll#l###l#    ",
-    "     #l#################ll#     ",
-    "      ##ll#llll#llll#lll##      ",
-    "        #l#llll#llll#ll#        ",
-    "         ###ll###lll###         ",
-    "            ########            ",
+    "       mm       ",
+    " ##### mm ##### ",
+    " #ooo# mm #   # ",
+    "m#ooo#mmmm#   #m",
+    " #ooo# mm #   # ",
+    " ##### mm ##### ",
+    "       mm       ",
+    "       mm       ",
+    "       mm       ",
+    "       mm       ",
+    " ##### mm ##### ",
+    " #   # mm #ooo# ",
+    "m#   #mmmm#ooo#m",
+    " #   # mm #ooo# ",
+    " ##### mm ##### ",
+    "       mm       ",
 ]
 
 
@@ -868,8 +852,11 @@ def _icon_cols(theme):
 
 
 def _icon_pixels(theme):
-    ln, fl, hl = _icon_cols(theme)
-    col = {"#": ln, "l": fl, "o": hl}
+    def lum(h):
+        c = QtGui.QColor(h)
+        return 0.2126 * c.redF() + 0.7152 * c.greenF() + 0.0722 * c.blueF()
+    pick = theme["acc"] if abs(lum(theme["acc"]) - lum(theme["ink"])) > 0.15 else theme["nt"]
+    col = {"#": theme["ink"], "m": theme["mid"], "o": pick}
     bg = theme["bg"]
     n = len(_ICON_MAP)
     return [[col.get(ch, bg) for ch in row.ljust(n)[:n]] for row in _ICON_MAP]
@@ -900,7 +887,7 @@ def _icon_choice():
 
 def _write_icon(idx):
     theme = _theme_state()["themes"][idx]
-    sig = "".join(theme[k] for k in ("ink", "nt", "nb", "acc", "acci", "tsh", "sh", "mid", "bg")).replace("#", "") + "|".join(_ICON_MAP)
+    sig = "".join(theme[k] for k in ("ink", "nt", "acc", "mid", "bg")).replace("#", "") + "|".join(_ICON_MAP)
     tag = format(zlib.crc32(sig.encode("ascii")) & 0xFFFFFF, "06x")
     folder = cmds.internalVar(userBitmapsDir=True)
     os.makedirs(folder, exist_ok=True)
