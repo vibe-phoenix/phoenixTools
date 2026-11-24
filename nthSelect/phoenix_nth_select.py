@@ -808,39 +808,80 @@ class _SwatchGrid(QtWidgets.QWidget):
 
 
 # =========================================================================
-# SHELF ICON — strip with every other cell picked, one colour version per theme
+# SHELF ICON — quad sphere with selected edge rings (32x32), one version per theme
 # =========================================================================
 _ICON_MAP = [
-    "m  m  m  m  m  m",
-    "m  m  m  m  m  m",
-    "m  m  m  m  m  m",
-    "m  m  m  m  m  m",
-    "################",
-    "#aa#ll#aa#ll#aa#",
-    "#aa#ll#aa#ll#aa#",
-    "#aa#ll#aa#ll#aa#",
-    "#aa#ll#aa#ll#aa#",
-    "#aa#ll#aa#ll#aa#",
-    "#aa#ll#aa#ll#aa#",
-    "################",
-    "m  m  m  m  m  m",
-    "m  m  m  m  m  m",
-    "m  m  m  m  m  m",
-    "m  m  m  m  m  m",
+    "            ########            ",
+    "         #####lll######         ",
+    "        ###ll#####ll##l#        ",
+    "      ####lll#####lll##l##      ",
+    "     ####lll##lll##lll#####     ",
+    "    #l##l####lllll####l##ll#    ",
+    "   #ll#lll###lllll###lll#lll#   ",
+    "  ##l#llll#l##lll##l#llll#l##   ",
+    "  ####lll#llll###llll#lll#####  ",
+    " #ll##ll#lllll###lllll#ll##lll# ",
+    " #l##l###llll##l##llll###l##ll# ",
+    " #l#lll###ll##lll##ll###lll#ll# ",
+    "#o##ll##l####lllll####l##ll##oo#",
+    "#o#lll#lll###lllll###lll#lll#oo#",
+    "#oooll#lll#ll##l##ll#lll#lloool#",
+    "##ooo#llll#lll###lll#llll#ooo#l#",
+    "##loooolll#llll#llll#lllooool#l#",
+    "##ll##oool#llll#llll#looo##ll#l#",
+    "#oll#looooollll#lllloooool#llol#",
+    "#ool#lllo#ooool#loooo#olll#lool#",
+    " #oo#llll#loooooooool#llll#ooo# ",
+    " #ooollll#llloo#oolll#lllloool# ",
+    " #lo#ooll#lllll#lllll#lloo#oll# ",
+    "  #l#oooooollll#lllloooooo#ll#  ",
+    "   ##lloo#ooooooooooo#ooll#l#   ",
+    "   ###lll#ooooo#ooooo#lll##l#   ",
+    "    ####l#lllll#lllll#l###l#    ",
+    "     #l#################ll#     ",
+    "      ##ll#llll#llll#lll##      ",
+    "        #l#llll#llll#ll#        ",
+    "         ###ll###lll###         ",
+    "            ########            ",
 ]
 
 
+def _icon_cols(theme):
+    """(lines, fill, highlight) picked so all three read on every theme."""
+    def lum(h):
+        c = QtGui.QColor(h)
+        return 0.2126 * c.redF() + 0.7152 * c.greenF() + 0.0722 * c.blueF()
+    def dist(a, b):
+        a, b = QtGui.QColor(a), QtGui.QColor(b)
+        return ((a.redF() - b.redF()) ** 2 + (a.greenF() - b.greenF()) ** 2 + (a.blueF() - b.blueF()) ** 2) ** 0.5 / 1.732
+    fill = theme["nt"]
+    lines = theme["ink"] if abs(lum(theme["ink"]) - lum(fill)) > 0.3 else theme["nb"]
+    best, score = theme["acc"], -1
+    for k in ("acc", "tsh", "sh", "mid", "bg", "acci"):
+        c = theme[k]
+        s = 0.5 * dist(c, fill) + 0.5 * dist(c, lines) + 0.2 * QtGui.QColor(c).hsvSaturationF()
+        if dist(c, lines) < 0.15 or dist(c, fill) < 0.15:
+            s -= 1
+        if s > score:
+            best, score = c, s
+    return lines, fill, best
+
+
 def _icon_pixels(theme):
-    col = {"#": theme["ink"], "l": theme["nt"], "a": theme["acc"], "m": theme["mid"]}
+    ln, fl, hl = _icon_cols(theme)
+    col = {"#": ln, "l": fl, "o": hl}
     bg = theme["bg"]
-    return [[col.get(ch, bg) for ch in row.ljust(16)[:16]] for row in _ICON_MAP]
+    n = len(_ICON_MAP)
+    return [[col.get(ch, bg) for ch in row.ljust(n)[:n]] for row in _ICON_MAP]
 
 
-def _icon_image(theme, scale=2):
-    img = QtGui.QImage(16 * scale, 16 * scale, QtGui.QImage.Format_ARGB32)
+def _icon_image(theme, scale=None):
+    px = _icon_pixels(theme)
+    scale = scale or max(1, 32 // len(px))
+    img = QtGui.QImage(len(px) * scale, len(px) * scale, QtGui.QImage.Format_ARGB32)
     img.fill(QtCore.Qt.transparent)
     p = QtGui.QPainter(img)
-    for y, row in enumerate(_icon_pixels(theme)):
+    for y, row in enumerate(px):
         for x, c in enumerate(row):
             if c:
                 p.fillRect(x * scale, y * scale, scale, scale, QtGui.QColor(c))
@@ -859,13 +900,13 @@ def _icon_choice():
 
 def _write_icon(idx):
     theme = _theme_state()["themes"][idx]
-    sig = "".join(theme[k] for k in ("ink", "nt", "acc", "bg")).replace("#", "") + "|".join(_ICON_MAP)
+    sig = "".join(theme[k] for k in ("ink", "nt", "nb", "acc", "acci", "tsh", "sh", "mid", "bg")).replace("#", "") + "|".join(_ICON_MAP)
     tag = format(zlib.crc32(sig.encode("ascii")) & 0xFFFFFF, "06x")
     folder = cmds.internalVar(userBitmapsDir=True)
     os.makedirs(folder, exist_ok=True)
     path = os.path.join(folder, "phxNthSelect_{}_{}.png".format(idx, tag)).replace("\\", "/")
     if not os.path.exists(path):
-        _icon_image(theme, 2).save(path, "PNG")
+        _icon_image(theme).save(path, "PNG")
     for f in os.listdir(folder):
         if f.startswith("phxNthSelect_") and f.endswith(".png"):
             full = os.path.join(folder, f).replace("\\", "/")
@@ -1087,13 +1128,14 @@ class _IconTile(QtWidgets.QWidget):
 
     def paintEvent(self, e):
         p = QtGui.QPainter(self)
-        px = 2
-        size = 16 * px
+        pix = _icon_pixels(_theme_state()["themes"][self._idx])
+        px = max(1, 32 // len(pix))
+        size = len(pix) * px
         x0 = (self.width() - size) // 2
         y0 = (self.height() - size) // 2
         if _icon_choice() == self._idx:
             _sel_frame(p, QtCore.QRect(x0 - 5, y0 - 5, size + 10, size + 10), _c("acc"))
-        for y, row in enumerate(_icon_pixels(_theme_state()["themes"][self._idx])):
+        for y, row in enumerate(pix):
             for x, c in enumerate(row):
                 if c:
                     p.fillRect(QtCore.QRect(x0 + x * px, y0 + y * px, px, px), QtGui.QColor(c))
